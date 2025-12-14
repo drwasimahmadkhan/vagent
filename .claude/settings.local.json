@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Test-Path .venvScriptsActivate.ps1)",
+      "Bash(python -m venv:*)",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(python -m pip install:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(uvicorn app.backend.main:app:*)",
+      "Bash(streamlit run:*)",
+      "Bash(Test-Path .venvScriptspython.exe)",
+      "Bash(Test-Path:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(.venv\\Scripts\\python.exe:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

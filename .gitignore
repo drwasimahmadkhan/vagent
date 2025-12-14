@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+*.egg
+.Python
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+.env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Byte-compiled / caches
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+*.log
+
+# SQLite
+*.sqlite
+*.db
+
+# Streamlit
+.streamlit/

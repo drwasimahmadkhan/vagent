@@ -1,0 +1,13 @@
+date,user_id,plan,price,active_users,revenue,region
+2024-01-01,U001,Basic,10,120,1200,North America
+2024-01-01,U002,Pro,25,80,2000,Europe
+2024-01-01,U003,Premium,50,40,2000,Asia
+2024-02-01,U001,Basic,10,130,1300,North America
+2024-02-01,U002,Pro,25,85,2125,Europe
+2024-02-01,U003,Premium,50,42,2100,Asia
+2024-03-01,U001,Basic,10,140,1400,North America
+2024-03-01,U002,Pro,25,90,2250,Europe
+2024-03-01,U003,Premium,50,45,2250,Asia
+2024-04-01,U001,Basic,10,150,1500,North America
+2024-04-01,U002,Pro,25,95,2375,Europe
+2024-04-01,U003,Premium,50,48,2400,Asia

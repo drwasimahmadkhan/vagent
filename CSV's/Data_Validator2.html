@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profitoracle - Validator Agent Architecture</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3B82F6;
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+            --bg-dark: #0F172A;
+            --card-bg: #1E293B;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        /* Flow Lines SVG Layer */
+        #connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Node Styling */
+        .node {
+            z-index: 10;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .node:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        }
+
+        .node-active {
+            ring-width: 2px;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+
+        /* Pulse Animation for active nodes */
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        .processing {
+            animation: pulse-ring 1.5s infinite;
+        }
+
+        /* Packet Animation */
+        .packet {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px white;
+            z-index: 20;
+            display: none;
+            transition: top 0.5s linear, left 0.5s linear;
+        }
+
+        /* SVG Line Styles */
+        .connection-line {
+            fill: none;
+            stroke: #475569;
+            stroke-width: 2;
+            transition: stroke 0.3s ease;
+        }
+        
+        .connection-line.active {
+            stroke: var(--primary);
+            stroke-width: 3;
+            stroke-dasharray: 10;
+            animation: dash 1s linear infinite;
+        }
+
+        .connection-line.error-path {
+            stroke: var(--danger);
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Modal Transitions */
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 300ms, transform 300ms;
+        }
+        .modal-exit {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .modal-exit-active {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 300ms, transform 300ms;
+        }
+
+    </style>
+</head>
+<body class="min-h-screen relative selection:bg-blue-500 selection:text-white pt-24">
+
+    <!-- Navbar -->
+    <nav class="fixed top-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-50 px-6 py-4 shadow-lg">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <!-- Company Name -->
+            <div class="flex items-center gap-3 min-w-[200px]">
+                <div class="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white">P</div>
+                <div class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                    Profitoracle
+                </div>
+            </div>
+
+            <!-- Simulation Controls (Center) -->
+            <div class="flex flex-wrap justify-center gap-3">
+                <button onclick="simulateFlow('success')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow font-medium transition flex items-center gap-2 text-sm">
+                    <i class="fas fa-play"></i> Simulate Success
+                </button>
+                <button onclick="simulateFlow('fail_validation')" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow font-medium transition flex items-center gap-2 text-sm">
+                    <i class="fas fa-times-circle"></i> Fail File Check
+                </button>
+                <button onclick="simulateFlow('code_retry')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg shadow font-medium transition flex items-center gap-2 text-sm">
+                    <i class="fas fa-sync-alt"></i> Logic Mismatch (Retry)
+                </button>
+            </div>
+
+            <!-- Tech Stack Button (Right) -->
+            <div class="flex justify-end min-w-[200px]">
+                <button onclick="toggleTechStack()" class="text-slate-300 hover:text-white hover:bg-slate-800 font-medium transition flex items-center gap-2 border border-slate-700 hover:border-slate-500 px-4 py-2 rounded-lg bg-slate-800/50">
+                    <i class="fas fa-layer-group text-blue-400"></i> Tech Stack
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Tech Stack Modal -->
+    <div id="tech-stack-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="modal-backdrop" onclick="toggleTechStack()"></div>
+        
+        <!-- Modal Content -->
+        <div class="relative bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 w-full max-w-lg mx-4 transform scale-90 opacity-0 transition-all duration-300" id="modal-content">
+            <div class="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                        <i class="fas fa-cubes text-blue-500"></i> Technology Stack
+                    </h3>
+                    <p class="text-slate-400 text-sm mt-1">Core components powering the Validator Agent.</p>
+                </div>
+                <button onclick="toggleTechStack()" class="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 rounded-lg transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                
+                <!-- Backend -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 text-lg">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Backend</div>
+                        <div class="font-medium text-slate-200">FastAPI (Python)</div>
+                    </div>
+                </div>
+
+                <!-- Frontend -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-red-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400 text-lg">
+                        <i class="fas fa-laptop-code"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Frontend</div>
+                        <div class="font-medium text-slate-200">Streamlit</div>
+                    </div>
+                </div>
+
+                <!-- AI Framework -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-purple-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 text-lg">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">AI Framework</div>
+                        <div class="font-medium text-slate-200">LangGraph + LangChain</div>
+                    </div>
+                </div>
+
+                <!-- LLM -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-orange-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 text-lg">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">LLM</div>
+                        <div class="font-medium text-slate-200">Claude Sonnet 4.5 (Anthropic)</div>
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-lg">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Security</div>
+                        <div class="font-medium text-slate-200">RestrictedPython Sandbox</div>
+                    </div>
+                </div>
+
+                <!-- Database -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-teal-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400 text-lg">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Database</div>
+                        <div class="font-medium text-slate-200">SQLite3</div>
+                    </div>
+                </div>
+
+                <!-- Data Processing -->
+                <div class="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-yellow-500/30 transition-colors">
+                    <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-400 text-lg">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Data Processing</div>
+                        <div class="font-medium text-slate-200">Pandas, NumPy, Scikit-learn</div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div class="mt-6 pt-4 border-t border-slate-800 text-center">
+                <button onclick="toggleTechStack()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 rounded-lg transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Background Grid -->
+    <div class="fixed inset-0 z-[-1] opacity-20" style="background-image: radial-gradient(#475569 1px, transparent 1px); background-size: 30px 30px;"></div>
+
+    <!-- SVG Layer for arrows -->
+    <svg id="connections"></svg>
+    
+    <!-- Data Packet -->
+    <div id="packet" class="packet"></div>
+
+    <div class="container mx-auto px-4 py-10 min-h-screen flex flex-col items-center justify-center">
+        
+        <header class="text-center mb-12 relative z-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
+                Validator Agent Architecture
+            </h1>
+            <p class="text-slate-400">
+                Visualizing the flow from user input to cognitive execution.
+            </p>
+        </header>
+
+        <!-- Architecture Grid -->
+        <div class="relative w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-y-16 items-start place-items-center">
+
+            <!-- 1. User Input -->
+            <div id="node-user" class="node glass-panel p-6 rounded-xl shadow-xl w-64 border-l-4 border-blue-500 md:col-start-2">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="p-3 bg-blue-500/20 rounded-lg text-blue-400">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <h3 class="font-bold text-lg">User Input</h3>
+                </div>
+                <div class="space-y-2 text-sm text-slate-300">
+                    <div class="bg-slate-800 p-2 rounded border border-slate-700 flex items-center gap-2">
+                        <i class="fas fa-search text-xs"></i> <span>Query</span>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded border border-slate-700 flex items-center gap-2">
+                        <i class="fas fa-file-csv text-xs"></i> <span>CSV File</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Validation Layer -->
+            <div id="node-validator" class="node glass-panel p-6 rounded-xl shadow-xl w-72 border-l-4 border-yellow-500 md:col-start-2">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="p-3 bg-yellow-500/20 rounded-lg text-yellow-400">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3 class="font-bold text-lg">Python Validation</h3>
+                </div>
+                <ul class="text-sm text-slate-300 space-y-1 list-disc list-inside">
+                    <li>Is Empty?</li>
+                    <li>What Format of File?</li>
+                    <li>Size < 10MB?</li>
+                    <li>Rows < 50,000?</li>
+                </ul>
+            </div>
+
+            <!-- 3. Error Handler (Left Branch) -->
+            <div id="node-error" class="node glass-panel p-6 rounded-xl shadow-xl w-64 border-l-4 border-red-500 md:col-start-1 md:row-start-3">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="p-3 bg-red-500/20 rounded-lg text-red-400">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 class="font-bold text-lg">Rejection</h3>
+                </div>
+                <p class="text-sm text-slate-300">
+                    Returns specific error reason to user (e.g., "File too large").
+                </p>
+            </div>
+
+            <!-- 4. Data Validator Agent Layer -->
+            <div class="md:col-start-2 md:row-start-3 w-full flex flex-col gap-6 p-10 rounded-2xl border border-dashed border-purple-500 bg-purple-900/30 relative shadow-2xl shadow-purple-900/20">
+                <!-- Rotated Label on Left Side -->
+                <div class="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 -rotate-90 bg-purple-600 text-sm font-bold px-4 py-2 rounded-lg text-white uppercase tracking-wider shadow-lg whitespace-nowrap z-20">
+                    Data Validator Agent
+                </div>
+
+                <!-- 4a. Planning Agent -->
+                <div id="node-planner" class="node glass-panel p-5 rounded-xl shadow-lg border-l-4 border-purple-500 w-full">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <h3 class="font-bold">Planning Agent</h3>
+                    </div>
+                    <p class="text-xs text-slate-300">Analyzes query & CSV structure. Formulates a strategic plan for data analysis.</p>
+                </div>
+
+                <!-- 4b. Execution Agent -->
+                <div id="node-executor" class="node glass-panel p-5 rounded-xl shadow-lg border-l-4 border-green-500 w-full">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="p-2 bg-green-500/20 rounded-lg text-green-400">
+                            <i class="fas fa-terminal"></i>
+                        </div>
+                        <h3 class="font-bold">Execution Agent</h3>
+                    </div>
+                    <p class="text-xs text-slate-300">Writes Python code, creates files, executes logic, and forwards output to Validator.</p>
+                </div>
+
+                <!-- 4c. NEW: Validator Agent -->
+                <div id="node-logic-validator" class="node glass-panel p-5 rounded-xl shadow-lg border-l-4 border-pink-500 w-full">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="p-2 bg-pink-500/20 rounded-lg text-pink-400">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <h3 class="font-bold">Validator Agent</h3>
+                    </div>
+                    <p class="text-xs text-slate-300">Checks if execution result matches user query.</p>
+                    <div class="mt-2 text-xs flex gap-2">
+                        <span class="px-2 py-1 bg-green-900/50 text-green-300 rounded border border-green-700">Matched: Final Answer</span>
+                        <span class="px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded border border-yellow-700">Mismatch: Re-plan</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Success/Output -->
+            <div id="node-success" class="node glass-panel p-6 rounded-xl shadow-xl w-64 border-l-4 border-green-400 md:col-start-2 md:row-start-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="p-3 bg-green-400/20 rounded-lg text-green-400">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h3 class="font-bold text-lg">Final Answer</h3>
+                </div>
+                <p class="text-sm text-slate-300">
+                    Agent response returned to user.
+                </p>
+            </div>
+
+        </div>
+
+        <!-- Legend/Info -->
+        <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-slate-400 max-w-4xl border-t border-slate-800 pt-8">
+            <div class="flex items-start gap-3">
+                <i class="fas fa-filter text-yellow-500 mt-1"></i>
+                <div>
+                    <strong class="text-white block mb-1">Pre-Validation</strong>
+                    Fast checks for file integrity and constraints before involving expensive AI models.
+                </div>
+            </div>
+            <div class="flex items-start gap-3">
+                <i class="fas fa-check-double text-pink-500 mt-1"></i>
+                <div>
+                    <strong class="text-white block mb-1">Logic Verification</strong>
+                    Validator Agent ensures the output actually answers the specific question asked.
+                </div>
+            </div>
+            <div class="flex items-start gap-3">
+                <i class="fas fa-sync text-purple-500 mt-1"></i>
+                <div>
+                    <strong class="text-white block mb-1">Self-Correction Loop</strong>
+                    If Validation fails, the system loops back to the Planning Agent to try a different approach.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Tech Stack Modal Logic ---
+        function toggleTechStack() {
+            const modal = document.getElementById('tech-stack-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const content = document.getElementById('modal-content');
+            
+            if (modal.classList.contains('hidden')) {
+                // Open
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                
+                // Small delay to allow display:flex to apply before transition
+                setTimeout(() => {
+                    backdrop.classList.remove('opacity-0');
+                    content.classList.remove('scale-90', 'opacity-0');
+                    content.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            } else {
+                // Close
+                backdrop.classList.add('opacity-0');
+                content.classList.remove('scale-100', 'opacity-100');
+                content.classList.add('scale-90', 'opacity-0');
+                
+                // Wait for transition to finish before hiding
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300);
+            }
+        }
+
+        // --- Logic to Draw Arrows and Animate ---
+
+        const svg = document.getElementById('connections');
+        
+        function getCenter(element) {
+            const rect = element.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 + window.scrollX,
+                y: rect.top + rect.height / 2 + window.scrollY,
+                top: rect.top + window.scrollY,
+                bottom: rect.bottom + window.scrollY,
+                left: rect.left + window.scrollX,
+                right: rect.right + window.scrollX
+            };
+        }
+
+        function createPath(id, startEl, endEl, type = 'straight') {
+            let path = document.getElementById(id);
+            if (!path) {
+                path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("id", id);
+                path.setAttribute("class", "connection-line");
+                // Marker
+                path.setAttribute("marker-end", "url(#arrowhead)");
+                svg.appendChild(path);
+            }
+
+            const start = getCenter(startEl);
+            const end = getCenter(endEl);
+
+            let d = "";
+
+            if (type === 'straight') {
+                d = `M ${start.x} ${start.bottom} L ${end.x} ${end.top}`;
+            } else if (type === 'elbow-left') {
+                d = `M ${start.x} ${start.bottom} 
+                     L ${start.x} ${start.bottom + 20} 
+                     L ${end.x} ${start.bottom + 20} 
+                     L ${end.x} ${end.top}`;
+            } else if (type === 'elbow-right') {
+                d = `M ${start.right} ${start.y} 
+                     L ${end.left} ${end.y}`;
+            } else if (type === 'loop-back') {
+                // Loop from Logic Validator back to Planner
+                const offset = 120; // Enough to clear the container
+                d = `M ${start.right} ${start.y} 
+                     L ${start.right + offset} ${start.y} 
+                     L ${start.right + offset} ${end.y} 
+                     L ${end.right} ${end.y}`;
+            }
+
+            path.setAttribute("d", d);
+            return path;
+        }
+
+        function createArrowMarker() {
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+            marker.setAttribute("id", "arrowhead");
+            marker.setAttribute("markerWidth", "10");
+            marker.setAttribute("markerHeight", "7");
+            marker.setAttribute("refX", "9");
+            marker.setAttribute("refY", "3.5");
+            marker.setAttribute("orient", "auto");
+            
+            const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            polygon.setAttribute("points", "0 0, 10 3.5, 0 7");
+            polygon.setAttribute("fill", "#64748b");
+            
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+        }
+
+        // Draw connections
+        function drawLines() {
+            const user = document.getElementById('node-user');
+            const validator = document.getElementById('node-validator');
+            const error = document.getElementById('node-error');
+            const planner = document.getElementById('node-planner');
+            const executor = document.getElementById('node-executor');
+            const logicValidator = document.getElementById('node-logic-validator');
+            const success = document.getElementById('node-success');
+
+            // 1. User -> Python Validator
+            createPath('path-1', user, validator, 'straight');
+
+            // 2. Python Validator -> Error (Left)
+            const p2 = document.getElementById('path-2') || document.createElementNS("http://www.w3.org/2000/svg", "path");
+            p2.setAttribute("id", "path-2");
+            p2.setAttribute("class", "connection-line");
+            p2.setAttribute("marker-end", "url(#arrowhead)");
+            svg.appendChild(p2);
+            const vC = getCenter(validator);
+            const eC = getCenter(error);
+            p2.setAttribute("d", `M ${vC.left} ${vC.y} L ${eC.x} ${vC.y} L ${eC.x} ${eC.top}`);
+
+            // 3. Python Validator -> Planner (Down)
+            createPath('path-3', validator, planner, 'straight');
+
+            // 4. Planner -> Executor (Down)
+            createPath('path-4', planner, executor, 'straight');
+
+            // 5. Executor -> Logic Validator (Down)
+            createPath('path-5', executor, logicValidator, 'straight');
+
+            // 6. Logic Validator -> Planner (Loop Back - Right side)
+            createPath('path-loop', logicValidator, planner, 'loop-back');
+
+            // 7. Logic Validator -> Success (Down - Straight)
+            createPath('path-success', logicValidator, success, 'straight');
+        }
+
+        // --- Animation Logic ---
+
+        const packet = document.getElementById('packet');
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function movePacket(pathId, duration = 800) {
+            const path = document.getElementById(pathId);
+            if(!path) return;
+            path.classList.add('active'); // Highlight path
+            
+            const len = path.getTotalLength();
+            packet.style.display = 'block';
+            
+            const startTime = performance.now();
+            
+            return new Promise(resolve => {
+                function animate(time) {
+                    let fraction = (time - startTime) / duration;
+                    if (fraction > 1) fraction = 1;
+
+                    const point = path.getPointAtLength(fraction * len);
+                    packet.style.left = (point.x - 6) + 'px'; 
+                    packet.style.top = (point.y - 6) + 'px';
+
+                    if (fraction < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        path.classList.remove('active');
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(animate);
+            });
+        }
+
+        async function flashNode(nodeId, type = 'process') {
+            const node = document.getElementById(nodeId);
+            if(!node) return;
+            node.classList.add('node-active');
+            if(type === 'process') node.classList.add('processing');
+            
+            // If error, flash red
+            if(type === 'error') node.style.borderColor = '#EF4444';
+            
+            await sleep(800);
+            
+            node.classList.remove('node-active');
+            node.classList.remove('processing');
+            node.style.borderColor = ''; // reset
+        }
+
+        let isAnimating = false;
+
+        async function simulateFlow(scenario) {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            // Reset
+            packet.style.display = 'none';
+
+            // 1. User Input
+            await flashNode('node-user');
+            
+            // Move to Validator
+            await movePacket('path-1');
+            await flashNode('node-validator');
+
+            if (scenario === 'fail_validation') {
+                // Move to Error
+                await movePacket('path-2');
+                await flashNode('node-error', 'error');
+            } else {
+                // Pass Validation -> Planner
+                await movePacket('path-3');
+                await flashNode('node-planner');
+
+                // Planner -> Executor
+                await movePacket('path-4');
+                await flashNode('node-executor');
+
+                // Executor -> Logic Validator
+                await movePacket('path-5');
+                await flashNode('node-logic-validator');
+
+                if (scenario === 'code_retry') {
+                    // Simulate Logic Mismatch -> Back to Planner
+                    await sleep(300); // Thinking
+                    await movePacket('path-loop'); // Loop back
+                    await flashNode('node-planner'); // Re-plan
+                    
+                    // Re-run
+                    await movePacket('path-4');
+                    await flashNode('node-executor');
+                    await movePacket('path-5');
+                    await flashNode('node-logic-validator'); // Check again
+                    
+                    // Finally Success
+                    await movePacket('path-success');
+                    await flashNode('node-success');
+                } else {
+                    // Direct Success: Logic Validator -> Success
+                    await movePacket('path-success');
+                    await flashNode('node-success');
+                }
+            }
+            
+            packet.style.display = 'none';
+            isAnimating = false;
+        }
+
+        // Init
+        window.addEventListener('load', () => {
+            createArrowMarker();
+            // Small timeout to ensure layout is settled
+            setTimeout(drawLines, 200);
+        });
+
+        window.addEventListener('resize', () => {
+            drawLines();
+        });
+
+    </script>
+</body>
+</html>

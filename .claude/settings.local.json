@@ -13,7 +13,11 @@
       "Bash(Test-Path:*)",
       "Bash(.venv/Scripts/python.exe:*)",
       "Bash(.venv\\Scripts\\python.exe:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(gh auth status:*)",
+      "Bash(winget:*)",
+      "Bash(gh auth:*)",
+      "Bash(where:*)"
     ]
   }
 }

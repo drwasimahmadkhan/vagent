@@ -15,6 +15,9 @@ dist/
 venv/
 ENV/
 
+# Environment variables
+.env
+
 # IDE
 .vscode/
 .idea/
@@ -29,6 +32,8 @@ Thumbs.db
 
 # Logs
 *.log
+errors.log
+validation.log
 
 # SQLite
 *.sqlite
@@ -36,3 +41,12 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+
+# Project specific
+uploads/
+audit_logs/
+CSV's/
+.claude/
+
+# Temp files
+nul

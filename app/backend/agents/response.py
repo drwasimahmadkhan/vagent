@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import structlog
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
 log = structlog.get_logger()
 
@@ -31,11 +32,22 @@ def strip_markdown_json(content: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def get_response_llm() -> ChatAnthropic:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+# def get_response_llm() -> ChatAnthropic:
+#     api_key = os.getenv("ANTHROPIC_API_KEY")
+#     if not api_key:
+#         raise RuntimeError("ANTHROPIC_API_KEY not set")
+#     return ChatAnthropic(model="claude-sonnet-4-5", api_key=api_key, temperature=0.3, max_tokens=4096)
+
+def get_response_llm():
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not set")
-    return ChatAnthropic(model="claude-sonnet-4-5", api_key=api_key, temperature=0.3, max_tokens=4096)
+        raise RuntimeError("OPENAI_API_KEY not set")
+
+    return ChatOpenAI(
+        model="gpt-4.1",   # or gpt-4.1-mini / gpt-4o
+        temperature=0.3,
+        max_tokens=4096
+    )
 
 
 def is_mock_mode() -> bool:

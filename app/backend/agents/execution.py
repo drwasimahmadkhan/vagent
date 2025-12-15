@@ -13,6 +13,7 @@ from RestrictedPython.Guards import guarded_iter_unpack_sequence, safer_getattr
 import structlog
 import pandas as pd
 from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 log = structlog.get_logger()
@@ -370,12 +371,24 @@ class AgentState(TypedDict):
     _shared_env: Optional[Dict[str, Any]]  # Shared execution environment for state persistence
 
 
-def get_execution_llm() -> ChatAnthropic:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not set")
-    return ChatAnthropic(model="claude-sonnet-4-5", api_key=api_key, temperature=0.1, max_tokens=4096)
+# def get_execution_llm() -> ChatAnthropic:
+#     api_key = os.getenv("ANTHROPIC_API_KEY")
+#     if not api_key:
+#         raise RuntimeError("ANTHROPIC_API_KEY not set")
+#     return ChatAnthropic(model="claude-sonnet-4-5", api_key=api_key, temperature=0.1, max_tokens=4096)
 
+# --- ADD OpenAI LLM ---
+def get_execution_llm():
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+
+    return ChatOpenAI(
+        model="gpt-4.1",   # or gpt-4.1 / gpt-4o / gpt-4.1-mini
+        api_key=api_key,
+        temperature=0.1,
+        max_tokens=4096
+    )
 
 def is_mock_mode() -> bool:
     """Check if mock execution mode is enabled (for testing without LLM costs)."""
